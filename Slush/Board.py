@@ -1,6 +1,5 @@
 import Slush.Boards.SlushEngine_ModelX as SLX
 from Slush.Base import *
-
 class sBoard:
   chip = 0
   bus = 0
@@ -8,6 +7,7 @@ class sBoard:
   def __init__(self, board = 'XLT'):
     """ initalize all of the controllers peripheral devices
     """
+    gpio.setwarnings(False)
     self.board = board
     self.initSPI()
     self.initGPIOState()
@@ -79,7 +79,6 @@ class sBoard:
   def initI2C(self):
     """ initalizes the i2c bus without relation to any of its slaves
     """
-    
     self.bus = SMBus.SMBus(1)
     
     try:

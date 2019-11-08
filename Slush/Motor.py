@@ -10,37 +10,67 @@ import math
 
 
 class Motor(sBoard):
-    
+    chip_assignments = {0: SLX.MTR0_ChipSelect, 1: SLX.MTR1_ChipSelect, 2: SLX.MTR2_ChipSelect,
+                        3: SLX.MTR3_ChipSelect, 4: SLX.MTR4_ChipSelect, 5: SLX.MTR5_ChipSelect, 6: SLX.MTR6_ChipSelect}
+
     boardInUse = 0
     
-    def __init__(self, motorNumber):
-       
-        # setting the particular chip parameters
-        if motorNumber == 0:
-            self.chipSelect = SLX.MTR0_ChipSelect
-        if motorNumber == 1:
-            self.chipSelect = SLX.MTR1_ChipSelect
-        if motorNumber == 2:
-            self.chipSelect = SLX.MTR2_ChipSelect
-        if motorNumber == 3:
-            self.chipSelect = SLX.MTR3_ChipSelect
-        if motorNumber == 4:
-            self.chipSelect = SLX.MTR4_ChipSelect
-        if motorNumber == 5:
-            self.chipSelect = SLX.MTR5_ChipSelect
-        if motorNumber == 6:
-            self.chipSelect = SLX.MTR6_ChipSelect
+    def __init__(self, motorNumber: int):
+        super().__init__()
+
+        # Assign chipSelect from chip_assignments dictionary
+        try:
+            self.chipSelect = Motor.chip_assignments[motorNumber]
+        except KeyError:
+            raise ValueError("The given motor number is not acceptable")
         # init the hardware
         self.initPeripherals()
+        self.init_chips()
+
+    def init_chips(self):
+        original_chip_select = self.chipSelect
+
+        for chip in Motor.chip_assignments.values():
+            self.chipSelect = chip
+
+            gpio.setup(chip, gpio.OUT)
+            self.setParam(LReg.ALARM_EN, 0xF7)
+            self.getParam(LReg.STATUS)
+
+        self.chipSelect = original_chip_select
+
+        # gpio.setup(13, gpio.IN, pull_up_down=gpio.PUD_UP)
+        # gpio.setup(13, gpio.IN)
+        # gpio.add_event_detect(13, gpio.FALLING, callback=lambda channel: self.gpio_callback())
+
+    def gpio_callback(self):
+        """
+        Function called when the trigger pin has been activated
+        If the debug level is OFF nothing will happen
+        If the debug level is LOW there will be a console print notifying of the trigger
+        If the debug level is HIGH all motors will be freed and the program will exit
+        :return: None
+        """
+        print("GPIO callback")
+        if self.debug is 'OFF':
+            return
+        if self.debug is 'LOW':
+            print("FLAG pin has been triggered. Consider changing motor parameters")
+            # TODO Raise a flag in KIVY to make visible on ui
+            return
+        if self.debug is 'HIGH':
+            for chip in sBoard.chips:  # Free all motor chips
+                self.chip_select = chip
+                self.xfer(LReg.HARD_HIZ)
+            sys.exit('THE MOTOR FLAG PIN WAS ACTIVATED CHANGE MOTOR VALUES')
 
     ''' initialize the appropriate pins and buses '''
     def initPeripherals(self):
-
         # check that the motors SPI is actually working
-        if (self.getParam(LReg.CONFIG) == 0x2e88):
+        if self.getParam(LReg.CONFIG) == 0x2e88:
             print("Motor Drive Connected on GPIO " + str(self.chipSelect))
             self.boardInUse = 0
-        elif (self.getParam(LReg6480.CONFIG) == 0x2c88):
+        elif self.getParam(LReg6480.CONFIG) == 0x2c88:
             print("High Power Drive Connected on GPIO " + str(self.chipSelect))
             self.boardInUse = 1
         else:
@@ -259,9 +289,10 @@ class Motor(sBoard):
 
     ''' reset the device to initial conditions '''
     def resetDev(self):
-        self.xfer(LReg.RESET_DEVICE)
-        if self.boardInUse == 1: self.setParam([0x1A, 16], 0x3688)
-        if self.boardInUse == 0: self.setParam([0x18, 16], 0x3688)
+        pass
+        # self.xfer(LReg.RESET_DEVICE)
+        # if self.boardInUse == 1: self.setParam([0x1A, 16], 0x3688)
+        # if self.boardInUse == 0: self.setParam([0x18, 16], 0x3688)
 
     ''' stop the motor using the decel '''
     def softStop(self):
