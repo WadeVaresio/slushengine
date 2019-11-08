@@ -6,6 +6,7 @@ __author__ = 'mangokid'
 from Slush.Board import *
 from Slush.Devices import L6470Registers as LReg
 from Slush.Devices import L6480Registers as LReg6480
+from Slush.Board import BoardTypes
 import math
 
 
@@ -39,9 +40,8 @@ class Motor(sBoard):
 
         self.chipSelect = original_chip_select
 
-        # gpio.setup(13, gpio.IN, pull_up_down=gpio.PUD_UP)
-        # gpio.setup(13, gpio.IN)
-        # gpio.add_event_detect(13, gpio.FALLING, callback=lambda channel: self.gpio_callback())
+        gpio.setup(13, gpio.IN, pull_up_down=gpio.PUD_UP)
+        gpio.add_event_detect(13, gpio.FALLING, callback=lambda channel: self.gpio_callback())
 
     def gpio_callback(self):
         """
@@ -51,7 +51,7 @@ class Motor(sBoard):
         If the debug level is HIGH all motors will be freed and the program will exit
         :return: None
         """
-        print("GPIO callback")
+        # self.debug is inherited from sBoard
         if self.debug is 'OFF':
             return
         if self.debug is 'LOW':
@@ -69,20 +69,20 @@ class Motor(sBoard):
         # check that the motors SPI is actually working
         if self.getParam(LReg.CONFIG) == 0x2e88:
             print("Motor Drive Connected on GPIO " + str(self.chipSelect))
-            self.boardInUse = 0
+            self.boardInUse = BoardTypes.XLT
         elif self.getParam(LReg6480.CONFIG) == 0x2c88:
             print("High Power Drive Connected on GPIO " + str(self.chipSelect))
-            self.boardInUse = 1
+            self.boardInUse = BoardTypes.D
         else:
             print("communication issues; check SPI configuration and cables")
 
         # based on board type init driver accordingly
-        if self.boardInUse == 0:
+        if self.boardInUse == BoardTypes.XLT:
             self.setOverCurrent(2000)
             self.setMicroSteps(16)
             self.setCurrent(70, 90, 100, 100)
             self.setParam(LReg.CONFIG, 0x3688)  # changed 0x3608 to 0x3688 enable OC_SD - shutdown driver if over-current
-        if self.boardInUse == 1:
+        if self.boardInUse == BoardTypes.D:
             self.setParam(LReg6480.CONFIG, 0x3688)  # changed 0x3608 to 0x3688 enable OC_SD - shutdown driver if over-current
             self.setCurrent(100, 120, 140, 140)
             self.setMicroSteps(16)
@@ -235,10 +235,10 @@ class Motor(sBoard):
 
     ''' sets the hardstop option for the limit switch '''
     def setLimitHardStop(self, stop):
-        if self.boardInUse is 0:
+        if self.boardInUse is BoardTypes.XLT:
             if stop == 1: self.setParam([0x18, 16], 0x3688)  # changed 0x3608 and 0x3818 to 0x3688 and 0x3698
             if stop == 0: self.setParam([0x18, 16], 0x3698)  # to enable OC_SD - shutdown driver if over-current
-        if self.boardInUse is 1:
+        if self.boardInUse is BoardTypes.D:
             if stop == 1: self.setParam([0x1A, 16], 0x3688)  # changed 0x3608 and 0x3818 to 0x3688 and 0x3698
             if stop == 0: self.setParam([0x1A, 16], 0x3698)  # to enable OC_SD - shutdown driver if over-current
 
