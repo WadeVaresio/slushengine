@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="PublishConfigData" autoUpload="Always" serverName="slush-test-pi.local">
+    <serverData>
+      <paths name="slush-test-pi.local">
+        <serverdata>
+          <mappings>
+            <mapping deploy="/home/pi/packages/slushengine" local="$PROJECT_DIR$" web="/" />
+          </mappings>
+        </serverdata>
+      </paths>
+    </serverData>
+    <option name="myAutoUpload" value="ALWAYS" />
+  </component>
+</project>

@@ -1,26 +1,25 @@
-import Slush.Boards.SlushEngine_ModelX as SLX
+from Slush.Boards.BoardUtilities import *
 from Slush.Base import *
-from enum import Enum
-
-
-class BoardTypes(Enum):
-    """
-    Defined Slush Board types
-    """
-    XLT = 0
-    D = 1
 
 
 class sBoard:
     chip = 0
     bus = 0
-    xlt_chip_selects = [SLX.MTR0_ChipSelect, SLX.MTR1_ChipSelect, SLX.MTR2_ChipSelect, SLX.MTR3_ChipSelect]
 
     def __init__(self, board='XLT', debug="LOW"):
-        """ initalize all of the controllers peripheral devices
+        """ initialize all of the controllers peripheral devices
         """
         gpio.setwarnings(False)
-        self.board = board
+
+        # Determine board type and set it accordingly
+        for board_type in BoardTypes:
+            if board == board_type.name:
+                self.board = board_type
+                break
+
+        if self.board is None:  # If the given board type wasn't found
+            raise ValueError("The given board type is not acceptable")
+
         self.debug = debug
         self.initSPI()
         self.initGPIOState()
@@ -37,8 +36,8 @@ class sBoard:
         gpio.setup(SLX.L6470_Reset, gpio.OUT)
 
         # chip select pins, must all be low or SPI will com fail
-        if self.board is 'XLT':
-            for chip in sBoard.xlt_chip_selects:
+        if self.board is BoardTypes.XLT:
+            for chip in XLT_CHIP_SELECTS:
                 gpio.setup(chip, gpio.OUT)
                 gpio.output(chip, gpio.HIGH)
 
@@ -46,25 +45,14 @@ class sBoard:
             gpio.setup(SLX.MCP23_Reset, gpio.OUT)
             gpio.output(SLX.MCP23_Reset, gpio.HIGH)
 
-        elif self.board is 'D':
-            gpio.setup(SLX.MTR0_ChipSelect, gpio.OUT)
-            gpio.setup(SLX.MTR1_ChipSelect, gpio.OUT)
-            gpio.setup(SLX.MTR2_ChipSelect, gpio.OUT)
-            gpio.setup(SLX.MTR3_ChipSelect, gpio.OUT)
-            gpio.setup(SLX.MTR4_ChipSelect, gpio.OUT)
-            gpio.setup(SLX.MTR5_ChipSelect, gpio.OUT)
-            gpio.setup(SLX.MTR6_ChipSelect, gpio.OUT)
-            gpio.output(SLX.MTR0_ChipSelect, gpio.HIGH)
-            gpio.output(SLX.MTR1_ChipSelect, gpio.HIGH)
-            gpio.output(SLX.MTR2_ChipSelect, gpio.HIGH)
-            gpio.output(SLX.MTR3_ChipSelect, gpio.HIGH)
-            gpio.output(SLX.MTR4_ChipSelect, gpio.HIGH)
-            gpio.output(SLX.MTR5_ChipSelect, gpio.HIGH)
-            gpio.output(SLX.MTR6_ChipSelect, gpio.HIGH)
+        elif self.board is BoardTypes.D:
+            for chip in D_CHIP_SELECTS:
+                gpio.setup(chip, gpio.OUT)
+                gpio.output(chip, gpio.HIGH)
         else:
             raise Exception('Board should be ''XLT'' or ''D''')
 
-        # preforma a hard reset
+        # preform a a hard reset
         gpio.output(SLX.L6470_Reset, gpio.LOW)
         time.sleep(.1)
         gpio.output(SLX.L6470_Reset, gpio.HIGH)

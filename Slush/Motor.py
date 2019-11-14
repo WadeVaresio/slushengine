@@ -6,18 +6,18 @@ __author__ = 'mangokid'
 from Slush.Board import *
 from Slush.Devices import L6470Registers as LReg
 from Slush.Devices import L6480Registers as LReg6480
-from Slush.Board import BoardTypes
+from Slush.Boards.BoardUtilities import BoardTypes
 import math
 
 
 class Motor(sBoard):
-    chip_assignments = {0: SLX.MTR0_ChipSelect, 1: SLX.MTR1_ChipSelect, 2: SLX.MTR2_ChipSelect,
-                        3: SLX.MTR3_ChipSelect, 4: SLX.MTR4_ChipSelect, 5: SLX.MTR5_ChipSelect, 6: SLX.MTR6_ChipSelect}
+    chip_assignments = {0: SLX.MTR0_ChipSelect, 1: SLX.MTR1_ChipSelect, 2: SLX.MTR2_ChipSelect, 3: SLX.MTR3_ChipSelect,
+                        4: SLX.MTR4_ChipSelect, 5: SLX.MTR5_ChipSelect, 6: SLX.MTR6_ChipSelect}
 
     boardInUse = 0
     
     def __init__(self, motorNumber: int):
-        super().__init__()
+        # super().__init__()
 
         # Assign chipSelect from chip_assignments dictionary
         try:
@@ -27,6 +27,7 @@ class Motor(sBoard):
         # init the hardware
         self.initPeripherals()
         self.init_chips()
+        self.chip_select = None
 
     def init_chips(self):
         original_chip_select = self.chipSelect
@@ -40,8 +41,9 @@ class Motor(sBoard):
 
         self.chipSelect = original_chip_select
 
-        gpio.setup(13, gpio.IN, pull_up_down=gpio.PUD_UP)
-        gpio.add_event_detect(13, gpio.FALLING, callback=lambda channel: self.gpio_callback())
+        # gpio.setup(CHIP_MONITORING_PIN, gpio.IN, pull_up_down=gpio.PUD_UP)
+        gpio.setup(CHIP_MONITORING_PIN, gpio.IN)
+        gpio.add_event_detect(CHIP_MONITORING_PIN, gpio.FALLING, callback=lambda channel: self.gpio_callback())
 
     def gpio_callback(self):
         """
@@ -59,7 +61,7 @@ class Motor(sBoard):
             # TODO Raise a flag in KIVY to make visible on ui
             return
         if self.debug is 'HIGH':
-            for chip in sBoard.chips:  # Free all motor chips
+            for chip in Motor.chip_assignments.values():  # Free all motor chips
                 self.chip_select = chip
                 self.xfer(LReg.HARD_HIZ)
             sys.exit('THE MOTOR FLAG PIN WAS ACTIVATED CHANGE MOTOR VALUES')
@@ -289,10 +291,12 @@ class Motor(sBoard):
 
     ''' reset the device to initial conditions '''
     def resetDev(self):
-        pass
-        # self.xfer(LReg.RESET_DEVICE)
-        # if self.boardInUse == 1: self.setParam([0x1A, 16], 0x3688)
-        # if self.boardInUse == 0: self.setParam([0x18, 16], 0x3688)
+        """
+        NOTE: This method has been deprecated as it interferes with GPIO chip monitoring
+        Reset the device to initial conditions.
+        :return:
+        """
+        raise DeprecationWarning("This method is no longer in use as it interferes with GPIO monitoring")
 
     ''' stop the motor using the decel '''
     def softStop(self):
@@ -384,7 +388,7 @@ class Motor(sBoard):
 
     ''' transfer data to the spi bus '''
     def xfer(self, data):
-
+        gpio.setmode(gpio.BCM)
         #mask the value to a byte format for transmission
         data = (int(data) & 0xff)
 
