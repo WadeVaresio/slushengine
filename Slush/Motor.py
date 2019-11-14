@@ -1,7 +1,7 @@
-''' Source Refrence: https://github.com/ameyer/Arduino-L6470/blob/master/L6470/L6470.cpp
-'''
-
-__author__ = 'mangokid'
+"""
+@file Motor.py Responsible for all stepper control functionality.
+Source Reference: https://github.com/ameyer/Arduino-L6470/blob/master/L6470/L6470.cpp
+"""
 
 from Slush.Board import *
 from Slush.Devices import L6470Registers as LReg
@@ -11,19 +11,25 @@ import math
 
 
 class Motor(sBoard):
+    """ Dictionary holding all of the associated motor chip selects for a given port"""
     chip_assignments = {0: SLX.MTR0_ChipSelect, 1: SLX.MTR1_ChipSelect, 2: SLX.MTR2_ChipSelect, 3: SLX.MTR3_ChipSelect,
                         4: SLX.MTR4_ChipSelect, 5: SLX.MTR5_ChipSelect, 6: SLX.MTR6_ChipSelect}
 
     boardInUse = 0
     
     def __init__(self, motorNumber: int):
-        # super().__init__()
+        """
+        Setup a motor for
+        :param motorNumber: Port the motor has been plugged into on the Slush Engine
+        """
+        super().__init__()
 
         # Assign chipSelect from chip_assignments dictionary
         try:
             self.chipSelect = Motor.chip_assignments[motorNumber]
         except KeyError:
             raise ValueError("The given motor number is not acceptable")
+
         # init the hardware
         self.initPeripherals()
         self.init_chips()
@@ -41,7 +47,8 @@ class Motor(sBoard):
 
         self.chipSelect = original_chip_select
 
-        # gpio.setup(CHIP_MONITORING_PIN, gpio.IN, pull_up_down=gpio.PUD_UP)
+        # Add event detection on the chip monitoring pin
+        gpio.remove_event_detect(CHIP_MONITORING_PIN)
         gpio.setup(CHIP_MONITORING_PIN, gpio.IN)
         gpio.add_event_detect(CHIP_MONITORING_PIN, gpio.FALLING, callback=lambda channel: self.gpio_callback())
 
@@ -66,8 +73,11 @@ class Motor(sBoard):
                 self.xfer(LReg.HARD_HIZ)
             sys.exit('THE MOTOR FLAG PIN WAS ACTIVATED CHANGE MOTOR VALUES')
 
-    ''' initialize the appropriate pins and buses '''
-    def initPeripherals(self):
+    def initPeripherals(self) -> None:
+        """
+        Initialize the appropriate pins and busses
+        :return: None
+        """
         # check that the motors SPI is actually working
         if self.getParam(LReg.CONFIG) == 0x2e88:
             print("Motor Drive Connected on GPIO " + str(self.chipSelect))
@@ -88,28 +98,38 @@ class Motor(sBoard):
             self.setParam(LReg6480.CONFIG, 0x3688)  # changed 0x3608 to 0x3688 enable OC_SD - shutdown driver if over-current
             self.setCurrent(100, 120, 140, 140)
             self.setMicroSteps(16)
-            #New to configure GATECFG1 and OCD_TH
-            self.setParam(LReg6480.GATECFG1, 0x5f) # Igate = 8mA and tcc=3750nS(max)
-            self.setParam(LReg6480.OCD_TH, 0x1f) # OCD_Th 1V (max)
+            # New to configure GATECFG1 and OCD_TH
+            self.setParam(LReg6480.GATECFG1, 0x5f)  # Igate = 8mA and tcc=3750nS(max)
+            self.setParam(LReg6480.OCD_TH, 0x1f)  # OCD_Th 1V (max)
 
-        #self.setParam(LReg.KVAL_RUN, 0xff)
         self.getStatus()
         self.free()
         
-    ''' check if the motion engine is busy '''
-    def isBusy(self):
+    def isBusy(self) -> bool:
+        """
+        Check to see if the motion engine is busy
+        :return: Bool representing whether the motion engine is busy
+        """
         status = self.getStatus()
         return (not ((status >> 1) & 0b1))
-    
-    ''' wait for motor to finish moving *** Caution this is blocking *** '''
-    def waitMoveFinish(self):
+
+    def waitMoveFinish(self) -> None:
+        """
+        Wait for the motor to finish moving.
+        NOTE: This method is blocking
+        :return: None
+        """
         status = 1
         while status:
             status = self.getStatus()
             status = not((status >> 1) & 0b1)
 
-    ''' set the microstepping level '''
-    def setMicroSteps(self, microSteps):
+    def setMicroSteps(self, microSteps: int):
+        """
+        Set the microstepping level
+        :param microSteps: The number of microsteps the motor should run at. Should be an int of base 2 from [2,128]
+        :return:
+        """
         self.free()
         stepVal = 0
 
@@ -120,61 +140,112 @@ class Motor(sBoard):
             
         self.setParam(LReg.STEP_MODE, (0x00 | stepVal | LReg.SYNC_SEL_1))
 
-    ''' set the threshold speed of the motor '''
-    def setThresholdSpeed(self, thresholdSpeed):
+    def setThresholdSpeed(self, thresholdSpeed) -> None:
+        """
+        Set the threshold speed of the motor
+        :param thresholdSpeed: Threshold speed the motor is allowed to run at
+        :return: None
+        """
         if thresholdSpeed == 0:
             self.setParam(LReg.FS_SPD, 0x3ff)
         else:
             self.setParam(LReg.FS_SPD, self.fsCalc(thresholdSpeed))
 
-    ''' set the current'''
-    def setCurrent(self, hold, run, acc, dec):
+    def setCurrent(self, hold, run, acc, dec) -> None:
+        """
+        Set the motors current values
+        :param hold: Amount of hold current
+        :param run: Amount of run current
+        :param acc: Amount of acceleration current
+        :param dec: Amount of decceleration current
+        :return: None
+        """
         self.setParam(LReg.KVAL_RUN, run)
         self.setParam(LReg.KVAL_ACC, acc)
         self.setParam(LReg.KVAL_DEC, dec)
         self.setParam(LReg.KVAL_HOLD, hold)
 
-    '''set the maximum motor speed'''
-    def setMaxSpeed(self, speed):
+    def setMaxSpeed(self, speed) -> None:
+        """
+        Set the maximum speed the motor will run at
+        :param speed: Motor's maximum speed
+        :return: None
+        """
         self.setParam(LReg.MAX_SPEED, self.maxSpdCalc(speed))
 
-    ''' set the minimum speed '''
-    def setMinSpeed(self, speed):
+    def setMinSpeed(self, speed: float) -> None:
+        """
+        Set the minimum speed the motor will run at
+        :type speed: float
+        :param speed: Motor's minimum speed
+        :return: None
+        """
         self.setParam(LReg.MIN_SPEED, self.minSpdCalc(speed))
 
-    ''' set acceleration rate '''
-    def setAccel(self, acceleration):
+    def setAccel(self, acceleration: float) -> None:
+        """
+        Set the acceleration of the stepper motor
+        :type acceleration: float
+        :param acceleration: Acceleration value
+        :return: None
+        """
         accelerationBytes = self.accCalc(acceleration)
         self.setParam(LReg.ACC, accelerationBytes)
 
-    ''' set the deceleration rate '''
-    def setDecel(self, deceleration):
+    def setDecel(self, deceleration: float) -> None:
+        """
+        Set the deceleration of the stepper motor
+        :type deceleration: float
+        :param deceleration: Deceleration value
+        :return:
+        """
         decelerationBytes = self.decCalc(deceleration)
         self.setParam(LReg.DEC, decelerationBytes)
 
-    ''' get the position of the motor '''
-    def getPosition(self):
+    def getPosition(self) -> float:
+        """
+        Get the current position of the stepper motor, based upon it's home value
+        :rtype:float
+        :return: The current position of the stepper motor, based upon it's home value
+        """
         return self.convert(self.getParam(LReg.ABS_POS))
 
-    ''' get the speed of the motor '''
-    def getSpeed(self):
+    def getSpeed(self) -> int:
+        """
+        Get the speed of the motor
+        :rtype: int
+        :return: The speed of the motor
+        """
         return self.getParam(LReg.SPEED)
 
     ''' set the overcurrent threshold '''
-    def setOverCurrent(self, ma_current):
+    def setOverCurrent(self, ma_current) -> None:
+        """
+        Set the over current threshold.
+        :param ma_current: The over current threshold amount in milliamps
+        :return: None
+        """
         OCValue = math.floor(ma_current/375)
         if OCValue > 0x0f: OCValue = 0x0f
         self.setParam((LReg.OCD_TH), OCValue)
 
-    ''' set the stall current level '''
     def setStallCurrent(self, ma_current):
+        """
+        Set the stall current
+        :param ma_current: Stall current amount in milliamps
+        :return: None
+        """
         STHValue = round(math.floor(ma_current/31.25))
         if(STHValue > 0x80): STHValue = 0x80
         if(STHValue < 0): STHValue = 9
         self.setParam((LReg.STALL_TH), STHValue)
 
-    ''' set low speed optimization '''
-    def setLowSpeedOpt(self, enable):
+    def setLowSpeedOpt(self, enable: bool) -> None:
+        """
+        Set whether you want the stepper motor to be optimized for low speed
+        :param enable: Boolean whether to enable low speed optimization
+        :return: None
+        """
         self.xfer(LReg.SET_PARAM | LReg.MIN_SPEED[0])
         if enable:
             self.param(0x1000, 13)
@@ -189,8 +260,14 @@ class Motor(sBoard):
         self.setParam(LReg.FN_SLP_ACC, acc)
         self.setParam(LReg.FN_SLP_DEC, dec)
 
-    ''' start the motor spinning '''
-    def run(self, dir, spd):
+    def run(self, dir: int, spd) -> None:
+        """
+        Run the motor indefinitely in a given direction with a given speed
+        :type dir: int
+        :param dir: Direction the stepper motor will run in (0 or 1) 0 being clockwise
+        :param spd: Speed the stepper motor will run at
+        :return: None
+        """
         speedVal = self.spdCalc(spd)
         self.xfer(LReg.RUN | dir)
         if speedVal > 0xfffff: speedVal = 0xfffff
@@ -198,12 +275,22 @@ class Motor(sBoard):
         self.xfer(speedVal >> 8)
         self.xfer(speedVal)
 
-    ''' sets the clock source '''
-    def stepClock(self, dir):
+    def stepClock(self, dir: int) -> None:
+        """
+        Set the clock source
+        :type dir: int
+        :param dir: direction to send when setting the clock source
+        :return: None
+        """
         self.xfer(LReg.STEP_CLOCK | dir)
 
-    ''' move the motor a number of steps '''
-    def move(self, nStep):
+    def move(self, nStep: int) -> None:
+        """
+        Move the stepper motor a given number of steps
+        :type nStep: int
+        :param nStep: Number of steps the stepper motor will move
+        :return: None
+        """
         dir = 0
 
         if nStep >= 0:
@@ -219,8 +306,13 @@ class Motor(sBoard):
         self.xfer(n_stepABS >> 8)
         self.xfer(n_stepABS)
 
-    ''' move to a position with reference to the motors current position '''
-    def goTo(self, pos):
+    def goTo(self, pos: float) -> None:
+        """
+        Go to a given position based upon where the stepper motor currently is
+        :type pos: float
+        :param pos: Position for the stepper motor to go to
+        :return: None
+        """
         self.xfer(LReg.GOTO)
         if pos > 0x3fffff: pos = 0x3fffff
         self.xfer(pos >> 16)
@@ -228,15 +320,30 @@ class Motor(sBoard):
         self.xfer(pos)
 
     ''' same as go to but with a forced direction '''
-    def goToDir(self, dir, pos):
+    def goToDir(self, dir: int, pos: float):
+        """
+        Go to a position based upon where the stepper motor is. Go to this position with a forced direction
+        :type dir: int
+        :param dir: Direction the stepper motor will run when going to the given position
+        :type pos: float
+        :param pos: Position for the stepper motor to go
+        :return: None
+        """
         self.xfer(LReg.GOTO_DIR)
         if pos > 0x3fffff: pos = 0x3fffff
         self.xfer(pos >> 16)
         self.xfer(pos >> 8)
         self.xfer(pos)
 
-    ''' sets the hardstop option for the limit switch '''
-    def setLimitHardStop(self, stop):
+    def setLimitHardStop(self, stop: bool) -> None:
+        """
+        Set whether the stepper motor should stop when it hits a limit switch.
+        This is useful when a stepper motor needs to go past it's limit switch during operation, where the limit switch
+        serves as a homing mechanism.
+        :type stop: bool
+        :param stop: Boolean whether the stepper motor should stop when it hits a limit switch
+        :return: None
+        """
         if self.boardInUse is BoardTypes.XLT:
             if stop == 1: self.setParam([0x18, 16], 0x3688)  # changed 0x3608 and 0x3818 to 0x3688 and 0x3698
             if stop == 0: self.setParam([0x18, 16], 0x3698)  # to enable OC_SD - shutdown driver if over-current
