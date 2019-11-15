@@ -10,6 +10,8 @@ D_CHIP_SELECTS = [SLX.MTR0_ChipSelect, SLX.MTR1_ChipSelect, SLX.MTR2_ChipSelect,
 
 CHIP_MONITORING_PIN = 13
 
+DEBUG_LEVELS = ["HIGH", "LOW", "OFF"]
+
 
 class BoardTypes(Enum):
     """

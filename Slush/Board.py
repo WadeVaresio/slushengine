@@ -25,6 +25,20 @@ class sBoard:
         self.initGPIOState()
         self.initI2C()
 
+    def set_debug_level(self, level: str) -> None:
+        """
+        Set the debug level. Please refer to BoardUtilities.DEBUG_LEVELS for a list of acceptable values
+        :type level: str
+        :param level: New debug level
+        :raises ValueError: A ValueError is raised when the given level is not an acceptable debug level
+        :return: None
+        """
+        level = level.upper()
+        if level in DEBUG_LEVELS:
+            self.debug = level
+        else:
+            raise ValueError("Given debug level is bad, check acceptable levels in BoardUtilities")
+
     def initGPIOState(self):
         """sets the default states for the GPIO on the slush modules. *This
         is currently only targeted at the Raspberry Pi. Other target devices

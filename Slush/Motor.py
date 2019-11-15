@@ -8,6 +8,7 @@ from Slush.Devices import L6470Registers as LReg
 from Slush.Devices import L6480Registers as LReg6480
 from Slush.Boards.BoardUtilities import BoardTypes
 import math
+import warnings
 
 
 class Motor(sBoard):
@@ -35,43 +36,48 @@ class Motor(sBoard):
         self.init_chips()
         self.chip_select = None
 
-    def init_chips(self):
-        original_chip_select = self.chipSelect
+    def init_chips(self) -> None:
+        """
+        Initialize all of the stepper motor chips. Set each chips ALARM register to ignore UVLO events.
+
+        Setup the gpio flag pin to be an input and setup event detection.
+        :return: None
+        """
+        original_chip_select = self.chipSelect  # save original chipSelect as it will be changed
 
         for chip in Motor.chip_assignments.values():
-            self.chipSelect = chip
+            self.chipSelect = chip  # xfer uses the current chipSelect so we must change it
 
             gpio.setup(chip, gpio.OUT)
-            self.setParam(LReg.ALARM_EN, 0xF7)
-            self.getParam(LReg.STATUS)
+            self.setParam(LReg.ALARM_EN, 0xF7)  # ignore UVLO events
+            self.getParam(LReg.STATUS)  # get status to ensure the UVLO status bit is high
 
-        self.chipSelect = original_chip_select
+        self.chipSelect = original_chip_select  # set the chipSelect back to original
 
         # Add event detection on the chip monitoring pin
-        gpio.remove_event_detect(CHIP_MONITORING_PIN)
-        gpio.setup(CHIP_MONITORING_PIN, gpio.IN)
-        gpio.add_event_detect(CHIP_MONITORING_PIN, gpio.FALLING, callback=lambda channel: self.gpio_callback())
+        gpio.remove_event_detect(CHIP_MONITORING_PIN)  # remove any previous event detects (multiple motor setups)
+        gpio.setup(CHIP_MONITORING_PIN, gpio.IN)  # setup the flag pin to be an input
+        gpio.add_event_detect(CHIP_MONITORING_PIN, gpio.FALLING, callback=lambda channel: self.gpio_callback())  # add event detect on falling edge of pin
 
-    def gpio_callback(self):
+    def gpio_callback(self) -> None:
         """
-        Function called when the trigger pin has been activated
-        If the debug level is OFF nothing will happen
-        If the debug level is LOW there will be a console print notifying of the trigger
-        If the debug level is HIGH all motors will be freed and the program will exit
+        Function called when the trigger pin has been activated. References self.debug which is inherited from Slush.Board
+        If the debug level is "OFF" nothing will happen
+        If the debug level is "LOW" there will be a console print notifying of the trigger
+        If the debug level is "HIGH" all motors will be freed and the program will exit
         :return: None
         """
         # self.debug is inherited from sBoard
-        if self.debug is 'OFF':
+        if self.debug == "OFF":
             return
-        if self.debug is 'LOW':
-            print("FLAG pin has been triggered. Consider changing motor parameters")
-            # TODO Raise a flag in KIVY to make visible on ui
+        if self.debug == 'LOW':
+            warnings.warn("THE SLUSH FLAG PIN HAS BEEN ACTIVATED CONSIDER CHANGING MOTOR PARAMETERS", RuntimeWarning)
             return
-        if self.debug is 'HIGH':
+        if self.debug == "HIGH":
             for chip in Motor.chip_assignments.values():  # Free all motor chips
                 self.chip_select = chip
                 self.xfer(LReg.HARD_HIZ)
-            sys.exit('THE MOTOR FLAG PIN WAS ACTIVATED CHANGE MOTOR VALUES')
+            sys.exit("THE SLUSH FLAG PIN WAS ACTIVATED, CHANGE MOTOR VALUES, ALL MOTORS HAVE BEEN FREED")
 
     def initPeripherals(self) -> None:
         """
