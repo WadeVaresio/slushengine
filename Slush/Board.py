@@ -113,7 +113,7 @@ class sBoard:
     def setIOState(self, port, pinNumber, state):
 
         """ sets the output state of the industrial outputs on the SlushEngine. This
-        currentley does not support the digitial IO
+        currently does not support the digital IO
         """
         if port == 0:
             self.bus.write_byte_data(0x20, 0x00, 0x00)

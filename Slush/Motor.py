@@ -39,6 +39,7 @@ class Motor(sBoard):
         self.initPeripherals()
         self.init_chips()
         self.chip_select = None
+        self.port = motorNumber
 
     def init_chips(self) -> None:
         """
@@ -75,7 +76,7 @@ class Motor(sBoard):
         if self.debug == "OFF":
             return
         if self.debug == 'LOW':
-            warnings.warn("THE SLUSH FLAG PIN HAS BEEN ACTIVATED CONSIDER CHANGING MOTOR PARAMETERS", RuntimeWarning)
+            warnings.warn("THE SLUSH FLAG PIN HAS BEEN ACTIVATED CONSIDER CHANGING MOTOR PARAMETERS for motor {}".format(str(self.port)), RuntimeWarning)
             return
         if self.debug == "HIGH":
             for chip in Motor.chip_assignments.values():  # Free all motor chips
