@@ -32,4 +32,4 @@ except ImportError:
 try:
     import smbus2 as SMBus
 except ImportError:
-    raise ImportError("Cannot Load SMBus library")
+    raise ImportError("Cannot Load SMBus library install w/ pip3 install smbus2")
