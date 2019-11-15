@@ -12,6 +12,10 @@ import warnings
 
 
 class Motor(sBoard):
+    """
+    Class to control a stepper motor
+    """
+
     """ Dictionary holding all of the associated motor chip selects for a given port"""
     chip_assignments = {0: SLX.MTR0_ChipSelect, 1: SLX.MTR1_ChipSelect, 2: SLX.MTR2_ChipSelect, 3: SLX.MTR3_ChipSelect,
                         4: SLX.MTR4_ChipSelect, 5: SLX.MTR5_ChipSelect, 6: SLX.MTR6_ChipSelect}
@@ -369,26 +373,44 @@ class Motor(sBoard):
         if self.getStatus() & 0x4: return 1
         else: return 0
 
-    ''' go until switch release event occurs '''
-    def goUntilRelease(self, act, dir):
+    def goUntilRelease(self, act, dir) -> None:
+        """
+        Move the stepper motor until the attached switch has been released
+        :param act:
+        :param dir: Direction to move the motor (0 or 1)
+        :return: None
+        """
         self.xfer(LReg.RELEASE_SW | act | dir)
 
-    ''' reads the value of the switch '''
-    def readSwitch(self):
+    def readSwitch(self) -> bool:
+        """
+        Read the value of the attached switch to the stepper motor
+        :rtype: bool
+        :return: Boolean whether the switch is depressed
+        """
         if self.getStatus() & 0x4: return 1
         else: return 0
-    
-    ''' go home '''
-    def goHome(self):
+
+    def goHome(self) -> None:
+        """
+        Move the stepper motor to it's home position
+        :return: None
+        """
         self.xfer(LReg.GO_HOME)
 
-    ''' go to mark position '''
-    def goMark(self):
+    def goMark(self) -> None:
+        """
+        Move the stepper motor to it's mark position
+        :return: None
+        """
         self.xfer(LReg.GO_MARK)
 
-    ''' set mark point '''
-    def setMark(self, value):
-
+    def setMark(self, value) -> None:
+        """
+        Set the stepper motor's mark value
+        :param value: Value to set mark at
+        :return: None
+        """
         if value == 0: value = self.getPosition()
         self.xfer(LReg.MARK)
         if value > 0x3fffff: value = 0x3fffff
@@ -398,87 +420,150 @@ class Motor(sBoard):
         self.xfer(value >> 8)
         self.xfer(value)
 
-    ''' set current position to the home position '''
-    def setAsHome(self):
+    def setAsHome(self) -> None:
+        """
+        Set the stepper motor's current position to be it's new home position
+        :return: None
+        """
         self.xfer(LReg.RESET_POS)
 
-    ''' reset the device to initial conditions '''
     def resetDev(self):
         """
         NOTE: This method has been deprecated as it interferes with GPIO chip monitoring
         Reset the device to initial conditions.
         :return:
         """
-        raise DeprecationWarning("This method is no longer in use as it interferes with GPIO monitoring")
+        raise DeprecationWarning("This method is no longer in use as it interferes with GPIO Flag Pin monitoring")
 
-    ''' stop the motor using the decel '''
-    def softStop(self):
+    def softStop(self) -> None:
+        """
+        Stop the stepper motor by decelerating
+        :return: None
+        """
         self.xfer(LReg.SOFT_STOP)
 
-    ''' hard stop the motor without concern for decel curve '''
-    def hardStop(self):
+    def hardStop(self) -> None:
+        """
+        Immediately stop the stepper motor without deceleration
+        :return: None
+        """
         self.xfer(LReg.HARD_STOP)
 
-    ''' decelerate the motor and the disable hold '''
-    def softFree(self):
+    def softFree(self) -> None:
+        """
+        Decelerate the stepper motor and disable hold
+        :return: None
+        """
         self.xfer(LReg.SOFT_HIZ)
 
-    ''' disable hold '''
-    def free(self):
+    def free(self) -> None:
+        """
+        Disable the stepper motor, allow it to move freely
+        :return: None
+        """
         self.xfer(LReg.HARD_HIZ)
 
-    ''' get the status of the motor '''
-    def getStatus(self):
+    def getStatus(self) -> int:
+        """
+        Get the status of the stepper motor.
+        :rtype: int
+        :return: Decimal representation of the stepper motors status register
+        """
         temp = 0;
         self.xfer(LReg.GET_STATUS)
         temp = self.xfer(0) << 8
         temp += self.xfer(0)
         return temp
 
-    ''' calculates the value of the ACC register '''
-    def accCalc(self, stepsPerSecPerSec):
+    def accCalc(self, stepsPerSecPerSec: int) -> int:
+        """
+        Calculates the value of the ACC register
+        :type stepsPerSecPerSec: int
+        :param stepsPerSecPerSec: stepper motors acceleration units of steps/sec^2
+        :rtype: int
+        :return: Calculated acceleration register
+        """
         temp = float(stepsPerSecPerSec) * 0.137438
         if temp > 4095.0: return 4095
         else: return round(temp)
 
-    ''' calculated the value of the DEC register '''
-    def decCalc(self, stepsPerSecPerSec):
+    def decCalc(self, stepsPerSecPerSec: int):
+        """
+        Calculated the value of the DEC register
+        :type stepsPerSecPerSec: int
+        :param stepsPerSecPerSec: stepper motors acceleration in units of steps/sec^2
+        :return: Calculated value of the deceleration register
+        """
         temp = float(stepsPerSecPerSec) * 0.137438
         if temp > 4095.0: return 4095
         else: return round(temp)
 
-    ''' calculates the max speed register '''
-    def maxSpdCalc(self, stepsPerSec):
+    def maxSpdCalc(self, stepsPerSec: int) -> int:
+        """
+        Calculates the max speed register
+        :type stepsPerSec: int
+        :param stepsPerSec: Stepper motors velocity in units of steps/sec
+        :rtype: int
+        :return: Max speed register calculation
+        """
         temp = float(stepsPerSec) * 0.065536
         if temp > 1023.0: return 1023
         else: return round(temp)
 
-    ''' calculates the min speed register '''
-    def minSpdCalc(self, stepsPerSec):
+    def minSpdCalc(self, stepsPerSec: int) -> int:
+        """
+        Calculates the min speed register
+        :type stepsPerSec: int
+        :param stepsPerSec: Stepper motor's velocity in units of steps/sec
+        :return: Min speed register calculation
+        """
         temp = float(stepsPerSec) * 4.1943
         if temp > 4095.0: return 4095
         else: return round(temp)
 
-    ''' calculates the value of the FS speed register '''
-    def fsCalc(self, stepsPerSec):
+    def fsCalc(self, stepsPerSec: int) -> int:
+        """
+        Calculates the value of the FS speed register
+        :type stepsPerSec: int
+        :param stepsPerSec: Stepper motor's velocity in units of steps/sec
+        :rtype: int
+        :return: FS speed register calculation
+        """
         temp = (float(stepsPerSec) * 0.065536) - 0.5
         if temp > 1023.0: return 1023
         else: return round(temp)
 
-    ''' calculates the value of the INT speed register '''
-    def intSpdCalc(self, stepsPerSec):
+    def intSpdCalc(self, stepsPerSec: int) -> int:
+        """
+        Calculates the value of the INT speed register
+        :type stepsPerSec: int
+        :param stepsPerSec: Stepper motor's velocity in units of steps/sec
+        :rtype: int
+        :return: INT speed register calculation
+        """
         temp = float(stepsPerSec) * 4.1943
         if temp > 16383.0: return 16383
         else: return round(temp)
 
-    ''' calculate speed '''
-    def spdCalc(self, stepsPerSec):
+    def spdCalc(self, stepsPerSec: int) -> int:
+        """
+        Calculate the stepper motors speed
+        :type stepsPerSec: int
+        :param stepsPerSec: stepper motors velocity in units of steps/sec
+        :rtypeL int
+        :return: Stepper motors calculated speed
+        """
         temp = float(stepsPerSec) * 67.106
         if temp > float(0x000fffff): return 0x000fffff
         else: return round(temp)
 
-    ''' utility function '''
-    def param(self, value, bit_len):
+    def param(self, value, bit_len: int):
+        """
+        Utility function to get a parameter from a register
+        :param value: Value to get from the bit
+        :param bit_len: Length of the bit
+        :return: Value read from the register
+        """
         ret_value = 0
 
         byte_len = bit_len/8
@@ -499,8 +584,12 @@ class Motor(sBoard):
        
         return (ret_value & mask)
 
-    ''' transfer data to the spi bus '''
     def xfer(self, data):
+        """
+        Transfer data to the spi bus
+        :param data: data to transfer
+        :return: Response from the spi bus
+        """
         gpio.setmode(gpio.BCM)
         #mask the value to a byte format for transmission
         data = (int(data) & 0xff)
@@ -517,17 +606,30 @@ class Motor(sBoard):
         self.xfer(LReg.SET_PARAM | param[0])
         return self.paramHandler(param, value)
 
-    ''' get a parameter from the motor driver '''
-    def getParam(self, param):
+    def getParam(self, param: tuple) -> int:
+        """
+        Get a parameter from the motor driver
+        :param param: Parameter to get from the motor driver
+        :return: Decimal representation of the bit
+        """
         self.xfer(LReg.GET_PARAM | param[0])
         return self.paramHandler(param, 0)
 
-    ''' convert twos compliment '''
-    def convert(self, val):
+    def convert(self, val) -> int:
+        """
+        Convert twos compliment
+        :param val: value to convert
+        :return: Values two compliment
+        """
         if val > 0x400000/2:
             val = val - 0x400000
         return val
 
-    ''' switch case to handle parameters '''
-    def paramHandler(self, param, value):
+    def paramHandler(self, param: tuple, value: int):
+        """
+        Switch case to handle parameters
+        :param param: Parameter to handle
+        :param value: value passed to param() to handle
+        :return: decimal representation of the bit
+        """
         return self.param(value, param[1])

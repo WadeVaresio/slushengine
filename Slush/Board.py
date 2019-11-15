@@ -1,8 +1,15 @@
+"""
+@file Board.py Responsible for holding the sBoard Class
+"""
+
 from Slush.Boards.BoardUtilities import *
 from Slush.Base import *
 
 
 class sBoard:
+    """
+    Class to control a Slush Engine Board
+    """
     chip = 0
     bus = 0
 
