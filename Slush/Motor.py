@@ -355,10 +355,10 @@ class Motor(sBoard):
         :param stop: Boolean whether the stepper motor should stop when it hits a limit switch
         :return: None
         """
-        if self.boardInUse is BoardTypes.XLT:
+        if self.boardInUse == BoardTypes.XLT:
             if stop == 1: self.setParam([0x18, 16], 0x3688)  # changed 0x3608 and 0x3818 to 0x3688 and 0x3698
             if stop == 0: self.setParam([0x18, 16], 0x3698)  # to enable OC_SD - shutdown driver if over-current
-        if self.boardInUse is BoardTypes.D:
+        if self.boardInUse == BoardTypes.D:
             if stop == 1: self.setParam([0x1A, 16], 0x3688)  # changed 0x3608 and 0x3818 to 0x3688 and 0x3698
             if stop == 0: self.setParam([0x1A, 16], 0x3698)  # to enable OC_SD - shutdown driver if over-current
 
