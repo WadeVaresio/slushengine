@@ -6,9 +6,8 @@ Source Reference: https://github.com/ameyer/Arduino-L6470/blob/master/L6470/L647
 from Slush.Board import *
 from Slush.Devices import L6470Registers as LReg
 from Slush.Devices import L6480Registers as LReg6480
-from Slush.Boards.BoardUtilities import BoardTypes
+from Slush.Boards.BoardUtilities import BoardTypes, CHIP_STATUSES_XLT, CHIP_STATUSES_D
 import math
-import warnings
 
 
 class Motor(sBoard):
@@ -22,12 +21,11 @@ class Motor(sBoard):
 
     boardInUse = 0
     
-    def __init__(self, motorNumber: int):
+    def __init__(self, motorNumber: int, debug_level: str = "LOW"):
         """
         Setup a motor for
         :param motorNumber: Port the motor has been plugged into on the Slush Engine
         """
-        super().__init__()
 
         # Assign chipSelect from chip_assignments dictionary
         try:
@@ -36,14 +34,29 @@ class Motor(sBoard):
             raise ValueError("The given motor number is not acceptable")
 
         # init the hardware
+        self.debug = None
+        self.set_debug_level(debug_level)
         self.initPeripherals()
         self.init_chips()
-        self.chip_select = None
         self.port = motorNumber
+
+    def set_debug_level(self, level: str) -> None:
+        """
+        Set the debug level. Please refer to BoardUtilities.DEBUG_LEVELS for a list of acceptable values
+        :type level: str
+        :param level: New debug level
+        :raises ValueError: A ValueError is raised when the given level is not an acceptable debug level
+        :return: None
+        """
+        level = level.upper()
+        if level in DEBUG_LEVELS:
+            self.debug = level
+        else:
+            raise ValueError("Given debug level is bad, check acceptable levels in BoardUtilities")
 
     def init_chips(self) -> None:
         """
-        Initialize all of the stepper motor chips. Set each chips ALARM register to ignore UVLO events.
+        Initialize all of the stepper motor chips. Set each chips ALARM register to ignore UVLO and switch turn on events
 
         Setup the gpio flag pin to be an input and setup event detection.
         :return: None
@@ -54,8 +67,8 @@ class Motor(sBoard):
             self.chipSelect = chip  # xfer uses the current chipSelect so we must change it
 
             gpio.setup(chip, gpio.OUT)
-            self.setParam(LReg.ALARM_EN, 0xF7)  # ignore UVLO events
-            self.getParam(LReg.STATUS)  # get status to ensure the UVLO status bit is high
+            self.setParam(LReg.ALARM_EN, 0xB7)  # ignore UVLO and switch turn on events
+            self.getParam(LReg.STATUS)  # get status to ensure the UVLO status bit is high as it is low upon start up
 
         self.chipSelect = original_chip_select  # set the chipSelect back to original
 
@@ -72,17 +85,83 @@ class Motor(sBoard):
         If the debug level is "HIGH" all motors will be freed and the program will exit
         :return: None
         """
+        error_message = "THE SLUSH FLAG PIN HAS BEEN ACTIVATED, CONSIDER CHANGING MOTOR PARAMETERS for {}".format(self)
+
         # self.debug is inherited from sBoard
         if self.debug == "OFF":
             return
         if self.debug == 'LOW':
-            warnings.warn("THE SLUSH FLAG PIN HAS BEEN ACTIVATED CONSIDER CHANGING MOTOR PARAMETERS for motor {}".format(str(self.port)), RuntimeWarning)
+            print(error_message)
+            self.print_status()
+
             return
         if self.debug == "HIGH":
+            print(error_message)
             for chip in Motor.chip_assignments.values():  # Free all motor chips
-                self.chip_select = chip
+                self.chipSelect = chip
                 self.xfer(LReg.HARD_HIZ)
             sys.exit("THE SLUSH FLAG PIN WAS ACTIVATED, CHANGE MOTOR VALUES, ALL MOTORS HAVE BEEN FREED")
+
+    def print_status(self) -> None:
+        """
+        Print all of the registers status for the L6470 chipset, if a status has a \ means it is active low
+        :return: None
+        """
+        byte = self._get_status_byte()  # byte is a string
+
+        print("The byte for ", self, "is: ", byte)
+
+        """Assign chip_status dict according to board type"""
+        chip_status = CHIP_STATUSES_D if self.boardInUse.value else CHIP_STATUSES_XLT
+
+        """Loop through all statuses and print the corresponding bit data"""
+        for status in chip_status.keys():
+            byte_index = chip_status.get(status)  # index of the corresponding bit in byte
+
+            if isinstance(byte_index, tuple):  # if the status requires more than one byte
+                print("\t{} {} ".format(byte[byte_index[0]] + byte[byte_index[1]], status))
+            else:  # status doesn't require more than one byte
+                print("\t{} {}".format(byte[byte_index], status))
+
+    def _get_status_byte(self) -> str:
+        """
+        Get the status byte as a String
+        :return: String of the status byte
+        """
+        byte = '{0:b}'.format(self.getStatus())
+
+        if len(byte) != 16:  # Add leading zeroes to the byte to make it 16 bits
+            diff = 16 - len(byte)
+            byte = "0" * diff + byte
+        return byte
+
+    def get_specific_status(self, status_register: str) -> str:
+        """
+        Get the specific status of a register
+        :param status_register: The register status you want to check
+            refer to https://elcodis.com/parts/5983789/L6470_p49.html or stepper.CHIP_STATUS_D or stepper.CHIP_STATUS_XLT
+            for more information
+        :return: String of the status. This is necessary as some statuses are 2 bits and a string ensures no truncation
+        """
+        byte = self._get_status_byte()
+
+        """Assign chip_status dict according to board type using ternary operator"""
+        chip_status = CHIP_STATUSES_D if self.boardInUse else CHIP_STATUSES_XLT
+
+        for key in chip_status.keys():  # Go through all keys and check if the status is contained in any of the keys
+            if str.find(key, status_register.upper()) >= 0:
+                status_register = key
+                break
+
+        data = CHIP_STATUSES_XLT.get(status_register)
+
+        if data is None:
+            raise ValueError("Invalid status register please double check your given status register")
+
+        if isinstance(data, tuple):
+            return str(byte[data[0]]) + str(byte[data[1]])
+        else:
+            return str(byte[data])
 
     def initPeripherals(self) -> None:
         """
@@ -634,3 +713,6 @@ class Motor(sBoard):
         :return: decimal representation of the bit
         """
         return self.param(value, param[1])
+
+    def __str__(self):
+        return "Stepper Motor on Port: {}".format(self.port)
